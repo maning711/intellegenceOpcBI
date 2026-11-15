@@ -1,4 +1,6 @@
-# 世界脉搏 World Pulse
+# 且听风吟 · intellegenceOpcBI
+
+个人工具集之 AI 小智囊看板。
 
 本地技术情报 Web 看板。Python 3.9+，无需第三方依赖。
 
@@ -25,7 +27,7 @@ python3 server.py --port 9000
 
 来源失败会保留上次缓存并标记，信息源面板显示错误。可修改 server.py 中的 SOURCES。缓存 data/news.json 不入 Git，不预填模拟新闻。服务仅监听本机。
 
-本目录为独立本地 Git 仓库，未设置远程仓库。用 git status / git log 查看版本。
+本目录使用 Git 管理，远程仓库为 https://github.com/maning711/intellegenceOpcBI 。用 git status / git log 查看版本。
 
 ## 中英文对照、周报与 OPC
 
