@@ -1,10 +1,11 @@
 import concurrent.futures as cf, datetime as dt, email.utils, html, json, re, threading, time, urllib.request, xml.etree.ElementTree as ET
 from pathlib import Path
+from translation import translate
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 ROOT=Path(__file__).resolve().parent
 CACHE=ROOT/'data/news.json'
 LOCK=threading.Lock()
-SOURCES=[('PostgreSQL','database','https://www.postgresql.org/news.rss'),('MongoDB','database','https://www.mongodb.com/blog/rss'),('AWS Database','database','https://aws.amazon.com/blogs/database/feed/'),('Azure SQL','database','https://devblogs.microsoft.com/azure-sql/feed/'),('TechCrunch AI','ai','https://techcrunch.com/category/artificial-intelligence/feed/'),('Google Research','ai','https://research.google/blog/rss/'),('Hugging Face','ai','https://huggingface.co/blog/feed.xml'),('Simon Willison','fde','https://simonwillison.net/atom/everything/'),('The New Stack','fde','https://thenewstack.io/feed/')]
+SOURCES=[('Ask HN · AI 需求讨论','opc','https://hn.algolia.com/api/v1/search_by_date?tags=ask_hn&query=AI&hitsPerPage=20'),('PostgreSQL','database','https://www.postgresql.org/news.rss'),('MongoDB','database','https://www.mongodb.com/blog/rss'),('AWS Database','database','https://aws.amazon.com/blogs/database/feed/'),('Azure SQL','database','https://devblogs.microsoft.com/azure-sql/feed/'),('TechCrunch AI','ai','https://techcrunch.com/category/artificial-intelligence/feed/'),('Google Research','ai','https://research.google/blog/rss/'),('Hugging Face','ai','https://huggingface.co/blog/feed.xml'),('Simon Willison','fde','https://simonwillison.net/atom/everything/'),('The New Stack','fde','https://thenewstack.io/feed/')]
 def clean(s):return re.sub(r'\s+',' ',html.unescape(re.sub('<[^>]*>',' ',s or ''))).strip()
 def fetch(s):
  name,category,url=s
@@ -12,6 +13,15 @@ def fetch(s):
   req=urllib.request.Request(url,headers={'User-Agent':'WorldPulse/1.0 RSS'})
   with urllib.request.urlopen(req,timeout=20) as r:raw=r.read(4000001)
   if len(raw)>4000000:raise ValueError('Feed too large')
+  if category=='opc':
+   payload=json.loads(raw);rows=[]
+   for hit in payload.get('hits',[]):
+    title=clean(hit.get('title',''));summary=clean(hit.get('story_text',''))[:650]
+    if not re.search(r'\bAI\b|agent|LLM|automat|GPT',title+' '+summary,re.I):continue
+    ident=str(hit.get('objectID',''))
+    if not ident.isdigit():continue
+    rows.append(dict(title=title,summary=summary,url='https://news.ycombinator.com/item?id='+ident,published=hit.get('created_at'),source=name,category=category))
+   return rows,dict(name=name,category=category,url=url,ok=True,count=len(rows))
   root=ET.fromstring(raw); rows=[]
   for e in (root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry'))[:35]:
    def val(*keys):
@@ -62,7 +72,18 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/news':self.respond(read())
   else:super().do_GET()
  def do_POST(self):
-  if self.path=='/api/refresh':self.respond(refresh())
+  if self.path=='/api/translate':
+   try:
+    length=int(self.headers.get('Content-Length','0'))
+    if length<1 or length>2048:raise ValueError('Invalid body')
+    request=json.loads(self.rfile.read(length))
+    article=next((a for a in read()['articles'] if a['url']==request.get('url')),None)
+    if not article:raise ValueError('Article not found')
+    field=request.get('field','title')
+    if field not in ('title','summary'):raise ValueError('Invalid field')
+    self.respond({'text':translate(article.get(field,'')),'provider':'MyMemory'})
+   except Exception as ex:self.respond({'error':str(ex)[:180]})
+  elif self.path=='/api/refresh':self.respond(refresh())
   else:self.send_error(404)
 if __name__=='__main__':
  import argparse
