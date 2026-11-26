@@ -6,6 +6,10 @@ ROOT=Path(__file__).resolve().parent
 CACHE=ROOT/'data/news.json'
 LOCK=threading.Lock()
 SOURCES=[('Ask HN · AI 需求讨论','opc','https://hn.algolia.com/api/v1/search_by_date?tags=ask_hn&query=AI&hitsPerPage=20'),('PostgreSQL','database','https://www.postgresql.org/news.rss'),('MongoDB','database','https://www.mongodb.com/blog/rss'),('AWS Database','database','https://aws.amazon.com/blogs/database/feed/'),('Azure SQL','database','https://devblogs.microsoft.com/azure-sql/feed/'),('TechCrunch AI','ai','https://techcrunch.com/category/artificial-intelligence/feed/'),('Google Research','ai','https://research.google/blog/rss/'),('Hugging Face','ai','https://huggingface.co/blog/feed.xml'),('Simon Willison','fde','https://simonwillison.net/atom/everything/'),('The New Stack','fde','https://thenewstack.io/feed/')]
+# Official release feeds: version signals rather than fabricated market news.
+TS_REPOS=[('GreptimeDB','GreptimeTeam/greptimedb'),('TDengine','taosdata/TDengine'),('Apache IoTDB','apache/iotdb'),('Apache HertzBeat','apache/hertzbeat'),('夜莺 / Nightingale','ccfos/nightingale'),('InfluxDB','influxdata/influxdb'),('TimescaleDB','timescale/timescaledb'),('VictoriaMetrics','VictoriaMetrics/VictoriaMetrics'),('Prometheus','prometheus/prometheus'),('QuestDB','questdb/questdb'),('ClickHouse','ClickHouse/ClickHouse'),('Grafana Mimir','grafana/mimir')]
+SOURCES += [(name+' Releases','timeseries','https://github.com/'+repo+'/releases.atom') for name,repo in TS_REPOS]
+SOURCES += [('GreptimeDB 官方博客','timeseries','https://www.greptime.com/blogs/rss.xml'),('InfluxDB 官方博客','timeseries','https://www.influxdata.com/feed/')]
 def clean(s):return re.sub(r'\s+',' ',html.unescape(re.sub('<[^>]*>',' ',s or ''))).strip()
 def fetch(s):
  name,category,url=s
@@ -29,7 +33,9 @@ def fetch(s):
      child=e.find(k)
      if child is not None:return ''.join(child.itertext())
     return ''
-   title=clean(val('title','{http://www.w3.org/2005/Atom}title'));summary=clean(val('description','{http://www.w3.org/2005/Atom}summary','{http://www.w3.org/2005/Atom}content'))[:650]
+   title=clean(val('title','{http://www.w3.org/2005/Atom}title'))
+   if category=='timeseries' and name.endswith(' Releases'):title=name.removesuffix(' Releases')+' · '+title
+   summary=clean(val('description','{http://www.w3.org/2005/Atom}summary','{http://www.w3.org/2005/Atom}content'))[:650]
    link=val('link') or next((l.get('href','') for l in e.findall('{http://www.w3.org/2005/Atom}link') if l.get('rel','alternate')=='alternate'),'')
    if not title or not link.startswith(('https://','http://')):continue
    if category=='fde' and not any(w in (title+' '+summary).lower() for w in ['agent','deploy','production','enterprise','workflow','evaluation','observability','integration','customer','engineering']):continue
